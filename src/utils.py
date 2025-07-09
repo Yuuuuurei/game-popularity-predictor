@@ -1,42 +1,40 @@
-import joblib
-import numpy as np
+import os
+import json
 import pandas as pd
 
-from src.preprocessing import preprocess, feature_engineering
+def align_features(X: pd.DataFrame, expected_columns: list) -> pd.DataFrame:
+    """
+    Menyesuaikan dataframe X agar memiliki kolom yang sesuai dengan expected_columns:
+    - Menambahkan kolom yang hilang dengan nilai 0.
+    - Menghapus kolom yang tidak dikenal.
+    - Mengurutkan kolom sesuai expected_columns.
+    """
+    X = X.copy()
 
+    # Tambah kolom yang tidak ada
+    for col in expected_columns:
+        if col not in X.columns:
+            X[col] = 0
 
-def load_model(model_path="model/best_model.pkl"):
-    return joblib.load(model_path)
+    # Hanya ambil kolom yang ada di expected_columns
+    X = X[[col for col in expected_columns]]
 
-def load_binner(binner_path="model/popularity_binner.pkl"):
-    try:
-        return joblib.load(binner_path)
-    except FileNotFoundError:
-        return None
-
-def prepare_features(input_df, use_embedding=True):
-    df_clean = preprocess(input_df, use_text_embedding=use_embedding)
-    X, _ = feature_engineering(df_clean, use_embedding=use_embedding)
     return X
 
-def is_classifier_model(model_path: str):
-    return "classifier" in model_path.lower()
+def save_expected_columns(columns: list, path: str = "model/expected_columns.json"):
+    """
+    Simpan daftar kolom fitur ke file JSON.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(columns, f)
 
-def supports_predict_proba(model):
-    return hasattr(model, "predict_proba")
+def load_expected_columns(path: str = "model/expected_columns.json") -> list:
+    """
+    Muat daftar kolom fitur dari file JSON.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Expected columns file tidak ditemukan di {path}")
     
-
-def predict_popularity(input_df, model, binner=None, use_embedding=True, return_proba=False):
-    X = prepare_features(input_df, use_embedding=use_embedding)
-
-    if is_classifier_model(model.__class__.__name__) or hasattr(model, "predict_proba"):
-        preds = model.predict(X)
-        proba = model.predict_proba(X) if return_proba and supports_predict_proba(model) else None
-        if binner and hasattr(binner, "inverse_transform"):
-            labels = binner.inverse_transform(preds.reshape(-1, 1)).flatten()
-        else:
-            labels = preds
-        return preds, labels, proba
-    else:
-        preds = model.predict(X)
-        return preds, preds, None  # regresi: label = prediksi numerik
+    with open(path, "r") as f:
+        return json.load(f)
