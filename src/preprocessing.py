@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import re
 from sklearn.preprocessing import MultiLabelBinarizer, LabelEncoder
-from sentence_transformers import SentenceTransformer
 
 def parse_estimated_owners(x):
     try:
@@ -27,15 +26,7 @@ def convert_to_numeric(df, cols):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-def embed_about_column(df):
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    about_texts = df["About the game"].fillna("unknown").astype(str).tolist()
-    embeddings = model.encode(about_texts, show_progress_bar=True)
-    emb_df = pd.DataFrame(embeddings, columns=[f"About_emb_{i}" for i in range(embeddings.shape[1])])
-    emb_df.index = df.index
-    return pd.concat([df, emb_df], axis=1)
-
-def preprocess(df, use_text_embedding=False):
+def preprocess(df):
     df = df.copy()
 
     # STEP 1: Bersihkan kolom Price
@@ -56,6 +47,7 @@ def preprocess(df, use_text_embedding=False):
     # STEP 4: Tanggal rilis
     df["Release date"] = pd.to_datetime(df["Release date"], errors="coerce")
     df["release_year"] = df["Release date"].dt.year
+    df = df[df["release_year"].notna()]
 
     # STEP 5: Kolom list
     list_cols = ["Genres", "Tags", "Categories"]
@@ -71,13 +63,7 @@ def preprocess(df, use_text_embedding=False):
     # STEP 7: Drop baris tanpa target
     df = df[df["EstimatedOwnersAvg"].notna()]
 
-    # STEP 8: Text Embedding opsional
-    if use_text_embedding:
-        df = embed_about_column(df)
-    else:
-        df.drop(columns=[col for col in df.columns if col.startswith("About_emb_")], errors="ignore", inplace=True)
-
-    # STEP 9: Buang kolom tidak relevan
+    # STEP 8: Buang kolom tidak relevan
     drop_cols = [
         "AppID", "Name", "Estimated owners", "About the game", "Reviews",
         "Supported languages", "Full audio languages", "Windows", "Mac", "Linux",
@@ -87,7 +73,7 @@ def preprocess(df, use_text_embedding=False):
 
     return df
 
-def feature_engineering(df, use_embedding=False, top_n_developers=100):
+def feature_engineering(df, top_n_developers=100):
     df = df.copy()
 
     # Multi-label: Tags, Genres, Categories
@@ -111,11 +97,23 @@ def feature_engineering(df, use_embedding=False, top_n_developers=100):
     X_numeric = df[numeric_cols].reset_index(drop=True)
     X_cat = pd.concat([tags_df, genres_df, cat_df], axis=1).reset_index(drop=True)
 
-    # Optional: Text Embedding
-    embed_cols = [col for col in df.columns if col.startswith("About_emb_")]
-    X_embed = df[embed_cols].reset_index(drop=True) if use_embedding and embed_cols else pd.DataFrame()
-
     # Final X
-    X = pd.concat([X_numeric, X_cat, X_embed], axis=1)
+    X = pd.concat([X_numeric, X_cat], axis=1)
     y = df["EstimatedOwnersAvg"]
     return X, y
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--csv", type=str, default="data/games_selected.csv", help="Path ke file CSV")
+    args = parser.parse_args()
+
+    print(f"\U0001F4C2 Membaca dataset dari: {args.csv}")
+    df = pd.read_csv(args.csv, low_memory=False)
+
+    print("\U0001F9FC Menjalankan preprocess...")
+    df_clean = preprocess(df)
+
+    print("🔍 Mengecek NaN di fitur...")
+    feature_engineering(df_clean)
