@@ -35,8 +35,9 @@ def preprocess(df):
     df["Price"] = df["Price"].astype(float)
 
     # STEP 2: Estimated Owners
-    df = df[df["Estimated owners"].apply(is_valid_owner_range)]
-    df["EstimatedOwnersAvg"] = df["Estimated owners"].apply(parse_estimated_owners)
+    if "Estimated owners" in df.columns:
+        df = df[df["Estimated owners"].apply(is_valid_owner_range)]
+        df["EstimatedOwnersAvg"] = df["Estimated owners"].apply(parse_estimated_owners)
 
     # STEP 3: Numerik konversi
     numeric_cols = ["Peak CCU", "Required age", "Average playtime forever", "Median playtime forever"]
@@ -61,7 +62,8 @@ def preprocess(df):
         df[col] = df[col].fillna(df[col].median())
 
     # STEP 7: Drop baris tanpa target
-    df = df[df["EstimatedOwnersAvg"].notna()]
+    if "EstimatedOwnersAvg" in df.columns:
+        df = df[df["EstimatedOwnersAvg"].notna()]
 
     # STEP 8: Buang kolom tidak relevan
     drop_cols = [
@@ -89,7 +91,7 @@ def feature_engineering(df, top_n_developers=100):
     df["Dev_top"] = df["Developers"].apply(lambda x: x if x in top_devs else "Other")
     df["Dev_encoded"] = LabelEncoder().fit_transform(df["Dev_top"])
 
-    # Numeric + Categorical
+    # Fitur numerik
     numeric_cols = [
         "Price", "Peak CCU", "Required age", "Average playtime forever",
         "Median playtime forever", "Positive", "Negative", "release_year", "Dev_encoded"
@@ -97,10 +99,15 @@ def feature_engineering(df, top_n_developers=100):
     X_numeric = df[numeric_cols].reset_index(drop=True)
     X_cat = pd.concat([tags_df, genres_df, cat_df], axis=1).reset_index(drop=True)
 
-    # Final X
+    # Final features
     X = pd.concat([X_numeric, X_cat], axis=1)
-    y = df["EstimatedOwnersAvg"]
-    return X, y
+
+    # Jika 'EstimatedOwnersAvg' tersedia (mode training), return X, y
+    if "EstimatedOwnersAvg" in df.columns:
+        y = df["EstimatedOwnersAvg"]
+        return X, y
+    else:
+        return X, None
 
 if __name__ == "__main__":
     import argparse

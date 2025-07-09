@@ -1,36 +1,53 @@
 import pandas as pd
+import joblib
 import os
-from src.utils import predict_popularity, load_model, load_binner, is_classifier_model
 
-def predict_from_csv(
-    csv_path,
-    model_path="model/best_model.pkl",
-    binner_path="model/popularity_binner.pkl",
-    use_embedding=True,
-    export_csv=True,
-    return_proba=True,
-    output_path="prediction_results.csv"
-):
-    df = pd.read_csv(csv_path)
-    model = load_model(model_path)
-    binner = load_binner(binner_path) if is_classifier_model(model_path) else None
+from src.preprocessing import preprocess, feature_engineering
 
-    preds, labels, probas = predict_popularity(
-        df, model=model, binner=binner, use_embedding=use_embedding, return_proba=return_proba
-    )
+# Paths ke model dan label encoder
+MODEL_PATH = "model/popularity_classifier_catboost_manualbin3.joblib"
+ENCODER_PATH = "model/popularity_label_encoder_manualbin3.joblib"
+FEATURE_COLS_PATH = "model/feature_columns.joblib"
 
-    df_result = df.copy()
-    df_result["Predicted"] = labels
+def load_model():
+    if not all(os.path.exists(p) for p in [MODEL_PATH, ENCODER_PATH, FEATURE_COLS_PATH]):
+        raise FileNotFoundError("Model, label encoder, atau feature_columns tidak ditemukan.")
 
-    if probas is not None:
-        # Tambahkan confidence score (probabilitas maksimum)
-        confidence = probas.max(axis=1)
-        df_result["Confidence"] = confidence
+    model = joblib.load(MODEL_PATH)
+    label_encoder = joblib.load(ENCODER_PATH)
+    feature_columns = joblib.load(FEATURE_COLS_PATH)
+    return model, label_encoder, feature_columns
 
-    if export_csv:
-        base_name = os.path.basename(csv_path).replace(".csv", "")
-        output_name = f"{base_name}_with_predictions.csv"
-        df_result.to_csv(output_name, index=False)
-        print(f"✅ Prediction results saved to: {output_name}")
+def align_features(X, expected_columns):
+    # Reindex untuk menghindari fragmentasi dan warning
+    return X.reindex(columns=expected_columns, fill_value=0)
 
-    return df_result
+def predict_popularity(input_data: pd.DataFrame):
+    """
+    input_data: DataFrame dengan format kolom seperti data mentah (`games_selected.csv`)
+    """
+    # Preprocessing + feature engineering
+    clean_df = preprocess(input_data)
+    X, _ = feature_engineering(clean_df)
+
+    # Load model dan encoder
+    model, label_encoder, expected_columns = load_model()
+
+    # Align features
+    X = align_features(X, expected_columns)
+
+    # Prediksi
+    preds = model.predict(X)
+    preds_label = label_encoder.inverse_transform(preds)
+
+    # Tambahkan hasil ke dataframe
+    result_df = input_data.copy()
+    result_df["Predicted Popularity Class"] = preds_label
+
+    return result_df[["Name", "Predicted Popularity Class"]]
+
+# Untuk testing mandiri
+if __name__ == "__main__":
+    sample_df = pd.read_csv("data/test.csv")  # berisi 1–5 baris game baru
+    result = predict_popularity(sample_df)
+    print(result)
