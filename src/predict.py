@@ -44,7 +44,13 @@ def predict_popularity(input_data: pd.DataFrame):
     result_df = input_data.copy()
     result_df["Predicted Popularity Class"] = preds_label
 
-    return result_df[["Name", "Predicted Popularity Class"]]
+    # Confidence score (jika tersedia)
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(X).max(axis=1)
+        result_df["Confidence"] = proba
+
+    return result_df[["Name", "Predicted Popularity Class", "Confidence"]] \
+        if "Confidence" in result_df.columns else result_df[["Name", "Predicted Popularity Class"]]
 
 # Untuk testing mandiri
 if __name__ == "__main__":
