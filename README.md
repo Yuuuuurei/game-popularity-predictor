@@ -127,13 +127,11 @@ Format CSV yang valid:
 Daftar utama ada di requirements.txt:
 
 ```
-txt
-Copy
-Edit
 catboost
 lightgbm
 xgboost
 pandas
+numpy
 scikit-learn
 seaborn
 streamlit
