@@ -87,13 +87,13 @@ Model utama yang digunakan:
 
 | Model              | Akurasi    |
 | ------------------ | ---------- |
-| LogisticRegression | **89.88%** |
+| LogisticRegression | 89.88%     |
 | RandomForest       | 91.25%     |
 | ExtraTrees         | 89.25%     |
 | NaiveBayes         | 84.40%     |
 | XGBoost            | 91.83%     |
 | LGBM               | 91.82%     |
-| **CatBoost**       | 91.92%     |
+| **CatBoost**       | **91.92%** |
 
 ---
 
